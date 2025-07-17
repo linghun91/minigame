@@ -2,8 +2,8 @@
 
 ## 项目概览
 - **插件名称**: minigame
-- **包名**: cn.i7mc
-- **作者**: saga
+- **包名**: qq.3753926641
+- **作者**: RayFilm
 - **核心依赖**: Paper 1.21.4 ([API文档](https://jd.papermc.io/paper/1.21.4/index.html))
 - **跨服核心**: Velocity ([API文档](https://jd.papermc.io/velocity/3.4.0/))
 - **Java版本**: 21
@@ -111,9 +111,135 @@
 - [ ] 士兵（神话生物）生成
   - [ ] **API方法**: `World.spawnEntity(Location location, EntityType type)`
   - [ ] **子URL**: https://jd.papermc.io/paper/1.21.4/org/bukkit/World.html#spawnEntity(org.bukkit.Location,org.bukkit.entity.EntityType)
-  - [ ] 实现 AI 行为控制
   - [ ] **实体类型**: `EntityType` 枚举定义生物类型
   - [ ] **子URL**: https://jd.papermc.io/paper/1.21.4/org/bukkit/entity/EntityType.html
+
+- [ ] AI 行为控制系统
+  - [ ] **MobGoals接口**: 管理生物AI目标
+  - [ ] **子URL**: https://jd.papermc.io/paper/1.21.4/com/destroystokyo/paper/entity/ai/MobGoals.html
+  - [ ] **获取MobGoals**: `Bukkit.getMobGoals()`
+  - [ ] **AI目标管理**:
+    ```java
+    MobGoals mobGoals = Bukkit.getMobGoals();
+    // 添加AI目标
+    mobGoals.addGoal(mob, priority, goal);
+    // 移除AI目标
+    mobGoals.removeGoal(mob, goalKey);
+    // 获取运行中的目标
+    Collection<Goal<T>> runningGoals = mobGoals.getRunningGoals(mob);
+    ```
+
+- [ ] 原版AI目标使用
+  - [ ] **VanillaGoal**: 预定义的原版AI目标
+  - [ ] **子URL**: https://jd.papermc.io/paper/1.21.4/com/destroystokyo/paper/entity/ai/VanillaGoal.html
+  - [ ] **常用AI目标**:
+    - `VanillaGoal.MELEE_ATTACK` - 近战攻击
+    - `VanillaGoal.NEAREST_ATTACKABLE` - 寻找最近可攻击目标
+    - `VanillaGoal.LOOK_AT_PLAYER` - 看向玩家
+    - `VanillaGoal.RANDOM_LOOK_AROUND` - 随机环顾
+    - `VanillaGoal.HURT_BY` - 被伤害时反击
+    - `VanillaGoal.FLOAT` - 浮水行为
+  - [ ] **实现方式**:
+    ```java
+    // 为僵尸添加攻击玩家的AI
+    Zombie zombie = (Zombie) world.spawnEntity(location, EntityType.ZOMBIE);
+    MobGoals mobGoals = Bukkit.getMobGoals();
+
+    // 移除默认AI（可选）
+    mobGoals.removeAllGoals(zombie, GoalType.TARGET);
+
+    // 添加自定义AI目标
+    mobGoals.addGoal(zombie, 1, VanillaGoal.FLOAT);
+    mobGoals.addGoal(zombie, 2, VanillaGoal.MELEE_ATTACK);
+    mobGoals.addGoal(zombie, 3, VanillaGoal.NEAREST_ATTACKABLE);
+    ```
+
+- [ ] AI目标类型管理
+  - [ ] **GoalType枚举**: 定义AI目标类型
+  - [ ] **子URL**: https://jd.papermc.io/paper/1.21.4/com/destroystokyo/paper/entity/ai/GoalType.html
+  - [ ] **目标类型**:
+    - `GoalType.MOVE` - 移动类型
+    - `GoalType.LOOK` - 观察类型
+    - `GoalType.JUMP` - 跳跃类型
+    - `GoalType.TARGET` - 目标选择类型
+    - `GoalType.UNKNOWN_BEHAVIOR` - 未知行为类型
+
+- [ ] 自定义AI目标创建
+  - [ ] **Goal接口**: 创建自定义AI行为
+  - [ ] **子URL**: https://jd.papermc.io/paper/1.21.4/com/destroystokyo/paper/entity/ai/Goal.html
+  - [ ] **实现自定义Goal**:
+    ```java
+    public class AttackPlayerGoal implements Goal<Zombie> {
+        private final Zombie zombie;
+        private Player target;
+
+        public AttackPlayerGoal(Zombie zombie) {
+            this.zombie = zombie;
+        }
+
+        @Override
+        public boolean shouldActivate() {
+            // 检查是否应该激活此目标
+            target = zombie.getWorld().getNearbyPlayers(zombie.getLocation(), 10.0)
+                .stream().findFirst().orElse(null);
+            return target != null;
+        }
+
+        @Override
+        public void start() {
+            // 目标开始时的行为
+            zombie.setTarget(target);
+        }
+
+        @Override
+        public void tick() {
+            // 每tick执行的行为
+            if (target != null && target.isValid()) {
+                zombie.getPathfinder().moveTo(target.getLocation());
+            }
+        }
+
+        @Override
+        public void stop() {
+            // 目标停止时的行为
+            zombie.setTarget(null);
+            target = null;
+        }
+
+        @Override
+        public GoalKey<Zombie> getKey() {
+            return GoalKey.of(Zombie.class, new NamespacedKey(plugin, "attack_player"));
+        }
+
+        @Override
+        public EnumSet<GoalType> getTypes() {
+            return EnumSet.of(GoalType.TARGET, GoalType.MOVE);
+        }
+    }
+    ```
+
+- [ ] 特殊AI行为实现
+  - [ ] **队伍协作AI**: 士兵之间的协作行为
+  - [ ] **巡逻AI**: 在指定区域巡逻
+  - [ ] **保护AI**: 保护特定目标或区域
+  - [ ] **追击AI**: 追击特定玩家或队伍
+  - [ ] **实现示例**:
+    ```java
+    // 为不同类型的士兵设置不同AI
+    if (entityType == EntityType.SKELETON) {
+        // 弓箭手AI - 远程攻击
+        mobGoals.addGoal(mob, 1, VanillaGoal.RANGED_BOW_ATTACK);
+        mobGoals.addGoal(mob, 2, VanillaGoal.AVOID_ENTITY); // 避免近战
+    } else if (entityType == EntityType.ZOMBIE) {
+        // 近战士兵AI
+        mobGoals.addGoal(mob, 1, VanillaGoal.ZOMBIE_ATTACK);
+        mobGoals.addGoal(mob, 2, VanillaGoal.MELEE_ATTACK);
+    } else if (entityType == EntityType.IRON_GOLEM) {
+        // 守护者AI
+        mobGoals.addGoal(mob, 1, VanillaGoal.DEFEND_VILLAGE);
+        mobGoals.addGoal(mob, 2, VanillaGoal.OFFER_FLOWER);
+    }
+    ```
 
 ### 3. 战斗与生存机制
 
